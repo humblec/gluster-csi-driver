@@ -2,6 +2,9 @@
 
 [![Build Status](https://ci.centos.org/view/Gluster/job/gluster_csi-driver-smoke/badge/icon)](https://ci.centos.org/view/Gluster/job/gluster_csi-driver-smoke/)
 
+
+[![Docker image on docker hub](docker pull gluster/glusterfs-csi-driver "Docker image on docker hub")](https://hub.docker.com/r/gluster/glusterfs-csi-driver/)
+
 This repo contains CSI driver for Gluster. The Container Storage Interface (CSI) is a proposed new industry standard for cluster-wide volume plugins.  “Container Storage Interface” (CSI)  enables storage vendors (SP) to develop a plugin once and have it work across a number of container orchestration (CO) systems. 
 
 ## Demo of GlusterFS CSI driver to create and delete volumes on GD2 Cluster
@@ -22,7 +25,9 @@ distribution. Once you clone the repository, to build the image, run the followi
 ## Testing GlusterFS CSI driver
 
 ### Deploy kubernetes Cluster
+
 ### Deploy a GD2 gluster cluster
+
 ### Deploy CSI driver
 ~~~
 [root@localhost cluster]#kubectl create -f csi-deployment.yaml
