@@ -27,6 +27,21 @@ const (
 	maxReplicaCount           = 10
 )
 
+// VolumeType struct store volume SC param values.
+type volumeType struct {
+	replicaCount       int
+	arbiterCount       int
+	arbiterType        string
+	arbiterZones       []string
+	disperseData       int
+	disperseRedundancy int
+	halo               bool
+	haloLatencyMs      int
+	haloMinReplicas    int
+
+	api.VolOptionReq
+}
+
 var errVolumeNotFound = errors.New("volume not found")
 
 // ControllerServer struct of GlusterFS CSI driver with supported methods of CSI controller server spec.
@@ -63,10 +78,16 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 
 	var reqConf ProvisionerConfig
 	var gdReq api.VolCreateReq
+	var volType volumeType
+
 	var err error
 	reqConf.gdVolReq = &gdReq
 
 	replicaCount := defaultReplicaCount
+
+	// default arbiter type is 'none'
+	arbiterTypeNormal := "normal"
+	arbiterTypeThin := "thin"
 
 	// Get Volume name
 	if req != nil {
@@ -83,15 +104,63 @@ func (cs *ControllerServer) ParseCreateVolRequest(req *csi.CreateVolumeRequest) 
 			if err != nil {
 				return nil, fmt.Errorf("invalid value for parameter '%s', %v", k, err)
 			}
+			volType.replicaCount = replicaCount
+		case "arbitertype":
+			switch strings.ToLower(v) {
+
+			case "normal":
+				arbiterTypeNormal = "normal"
+				volType.arbiterType = arbiterTypeNormal
+
+			case "thin":
+				arbiterTypeThin = "thin"
+				volType.arbiterType = arbiterTypeThin
+
+			default:
+				return nil, fmt.Errorf("invalid value %s given for %s SC parameter", v, "arbiterType")
+			}
+
+			if len(arbiterTypeNormal) > 0 && len(arbiterTypeThin) > 0 {
+				return nil, fmt.Errorf("Error: Thin and normal arbiter types are set together")
+			}
+
+		case "arbiterzones":
+			arbiterZonesSlice := strings.Split(v, ",")
+			volType.arbiterZones = arbiterZonesSlice
 
 		default:
 			return nil, fmt.Errorf("invalid option %s given for %s CSI driver", k, glusterfsCSIDriverName)
+		}
+	}
+	if replicaCount == 2 {
+
+		arbCheckErr := checkForArbiter(&volType)
+		if arbCheckErr != nil {
+			return nil, fmt.Errorf("provided storageclass parameters for '%s,%s' does not qualify as a supported volume type", "replicas", "arbitertype")
+		}
+
+		if volType.arbiterCount > 0 {
+			gdReq.ArbiterCount = volType.arbiterCount
+		} else {
+			gdReq.Options = volType.Options
 		}
 	}
 
 	gdReq.ReplicaCount = replicaCount
 
 	return &reqConf, nil
+}
+
+func checkForArbiter(vt *volumeType) error {
+	if vt.arbiterType == "normal" {
+		vt.arbiterCount = 1
+		return nil
+	}
+	if vt.arbiterType == "thin" {
+		vt.Options["replicate.thin-arbiter"] = "127.0.0.1:/brickpath"
+	}
+
+	return fmt.Errorf("failed to qualify as arbiter volume")
 }
 
 func parseVolumeParamInt(valueString string, min int, max int) (int, error) {
